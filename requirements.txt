@@ -1,0 +1,15 @@
+# DSIA 2026-2027 — dependencias base del curso
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.4
+matplotlib>=3.8
+plotly>=5.18
+pytest>=8.0
+requests>=2.31
+python-dotenv>=1.0
+pydantic>=2.6
+httpx>=0.27
+rich>=13.7
+PyYAML>=6.0
+gunicorn>=22.0
+Flask>=3.0
