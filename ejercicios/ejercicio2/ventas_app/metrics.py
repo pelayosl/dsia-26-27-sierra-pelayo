@@ -1,18 +1,15 @@
-def get_importe_region(validos: pd.DataFrame):
-    return (
-        validos.groupby("region")["importe"]
-        .sum()
-        .sort_values(ascending=False)
-    )
+import pandas as pd
+from ventas_app.validator import SalesRecord
 
-def get_top_3_productos(validos: pd.DataFrame):
-    return (
-        validos.groupby("producto")["importe"]
-        .sum()
-        .sort_values(ascending=False)
-        .head(3)
-    )
+class SalesMetrics:
+    def total_by_region(self, validos: list[SalesRecord]) -> dict[str, float]:
+        totals: dict[str, float] = {}
+        for record in validos:
+            totals[record.region] = totals.get(record.region, 0.0) + record.amount
 
-def get_cliente_id(validos: pd.DataFrame):
-    compras_cliente = validos["cliente_id"].value_counts()
-    return compras_cliente[compras_cliente > 1]
+        return dict(
+            sorted(
+                totals.items(), 
+                key=lambda item: item[1], reverse=True
+                )
+            )

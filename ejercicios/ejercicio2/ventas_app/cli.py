@@ -1,19 +1,21 @@
 import pandas as pd
-from ventas_app.loader import load
-from ventas_app.validator import validar_ventas
-from ventas_app.metrics import get_importe_region, get_top_3_productos, get_cliente_id
+from ventas_app.loader import CsvSalesRepository, SalesRepository
+from ventas_app.validator import SalesValidator
+from ventas_app.metrics import SalesMetrics
 from pathlib import Path
 
 # En cli.py, orquesta con argparse:
 # python -m ventas_app.cli --input Datos/ventas.csv --output Datos/ventas_limpias.csv
 
 def main(input_path: Path, output_path: Path):
+    repo: SalesRepository = CsvSalesRepository(input_path)
+    validator = SalesValidator()
+    metrics = SalesMetrics()
 
     # Cargar datos
-    df = load(input_path)
-
+    df = repo.load()
     # Validar datos
-    validos, errores = validar_ventas(df)
+    records, errors = validator.validate_sales(df)
 
     # Guardar datos válidos en un nuevo archivo CSV
     output_path = Path(output_path)
@@ -25,17 +27,25 @@ def main(input_path: Path, output_path: Path):
             output_path = Path(__file__).parent / "Datos" / output_path
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    validos.to_csv(output_path, index=False)
 
-    # Métricas
+    valid_df = pd.DataFrame(
+    [
+        {
+            "region": r.region,
+            "product": r.product,
+            "units": r.units,
+            "unit_price": r.unit_price,
+            "importe": r.amount,
+        }
+        for r in records
+    ]
+)
+    valid_df.to_csv(output_path, index=False)
+
+    print(f"Registros válidos: {len(records)} | inválidos: {len(errors)}")
     print("Importe por región:")
-    print(get_importe_region(validos))
-    
-    print("\nTop 3 productos por importe:")
-    print(get_top_3_productos(validos))
-    
-    print("\nClientes con más de una compra:")
-    print(get_cliente_id(validos))
+    for region, total in metrics.total_by_region(records).items():
+        print(f"  {region}: {total:.2f}")
 
 if __name__ == "__main__":
     import argparse
