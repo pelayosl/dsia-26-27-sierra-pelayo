@@ -1,11 +1,17 @@
-import pandas as pd
-from ventas_app.loader import CsvSalesRepository, SalesRepository
-from ventas_app.validator import SalesValidator
-from ventas_app.metrics import SalesMetrics
+import logging
 from pathlib import Path
 
+import pandas as pd
+
+from ventas_app.loader import CsvSalesRepository, SalesRepository
+from ventas_app.metrics import SalesMetrics
+from ventas_app.validator import SalesValidator
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
+
 # En cli.py, orquesta con argparse:
-# python -m ventas_app.cli --input Datos/ventas.csv --output Datos/ventas_limpias.csv
+# python -m ventas_app.cli --input ventas_app/Datos/ventas.csv --output Datos/ventas_limpias.csv
 
 def main(input_path: Path, output_path: Path):
     repo: SalesRepository = CsvSalesRepository(input_path)
@@ -42,10 +48,10 @@ def main(input_path: Path, output_path: Path):
 )
     valid_df.to_csv(output_path, index=False)
 
-    print(f"Registros válidos: {len(records)} | inválidos: {len(errors)}")
-    print("Importe por región:")
+    logger.info("Registros válidos: %s | inválidos: %s", len(records), len(errors))
+    logger.info("Importe por región:")
     for region, total in metrics.total_by_region(records).items():
-        print(f"  {region}: {total:.2f}")
+        logger.info("  %s: %.2f", region, total)
 
 if __name__ == "__main__":
     import argparse
