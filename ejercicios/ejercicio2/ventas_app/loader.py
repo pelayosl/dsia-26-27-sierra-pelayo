@@ -19,3 +19,13 @@ class CsvSalesRepository:
             raise DataLoadError(f"File not found: {self._path}")
 
         return pd.read_csv(self._path)
+
+class JsonSalesRepository:
+    def __init__(self, path: str | Path) -> None:
+        self._path = Path(path)
+        
+    def load(self) -> pd.DataFrame:
+        if not self._path.exists():
+            raise DataLoadError(f"File not found: {self._path}")
+
+        return pd.read_json(self._path)
