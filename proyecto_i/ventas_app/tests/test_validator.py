@@ -4,8 +4,9 @@ import pandas as pd
 import pytest
 
 from ventas_app.errors import DataLoadError
-from ventas_app.loader import CsvSalesRepository
-from ventas_app.validator import SalesValidator
+from ventas_app.loader import CsvSalesRepository, JsonSalesRepository
+from ventas_app.metrics import SalesMetrics
+from ventas_app.validator import SalesRecord, SalesValidator
 
 
 @pytest.fixture
@@ -63,6 +64,36 @@ def test_carga_de_csv_inexistente_lanza_error(tmp_path):
 
     with pytest.raises(DataLoadError):
         repositorio.load()
+
+
+def test_carga_de_json_inexistente_lanza_error(tmp_path):
+    repositorio = JsonSalesRepository(tmp_path / "no-existe.json")
+
+    with pytest.raises(DataLoadError):
+        repositorio.load()
+
+
+def test_carga_de_json_valido(tmp_path):
+    ruta = tmp_path / "ventas.json"
+    datos = pd.DataFrame([{"region": "Norte", "importe": 20.0}])
+    datos.to_json(ruta, orient="records")
+
+    cargado = JsonSalesRepository(ruta).load()
+
+    assert list(cargado["region"]) == ["Norte"]
+    assert list(cargado["importe"]) == [20.0]
+
+
+def test_metricas_ordenan_totales_por_region_descendente():
+    validos = [
+        SalesRecord(region="Sur", product="A", units=1, unit_price=10),
+        SalesRecord(region="Norte", product="B", units=3, unit_price=10),
+        SalesRecord(region="Sur", product="C", units=2, unit_price=10),
+    ]
+
+    totales = SalesMetrics().total_by_region(validos)
+
+    assert list(totales.items()) == [("Sur", 30.0), ("Norte", 30.0)]
 
 
 @pytest.mark.integration
