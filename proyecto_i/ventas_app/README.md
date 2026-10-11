@@ -19,3 +19,14 @@ pytest -q -m "not integration"
 .......                                                                                                                [100%]
 7 passed, 1 deselected in 0.73s
 ```
+
+---
+## CI
+
+Link a workflow en verde: https://github.com/pelayosl/dsia-26-27-sierra-pelayo/actions/runs/38171852799
+
+Workflow: `.github/workflows/ci.yml`
+
+```bash
+pytest -q --cov=ventas_app --cov-report=term-missing --cov-fail-under=60
+```
