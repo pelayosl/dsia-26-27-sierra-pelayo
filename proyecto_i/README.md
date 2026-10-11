@@ -4,6 +4,16 @@
 **Presentación / arranque en clase:** 14 de septiembre de 2026  
 **Entrega orientativa:** tras la sesión de pytest/CI (**28 sep 2026**), salvo indicación distinta en aula.
 
+## CI
+
+El workflow [`ci.yml`](.github/workflows/ci.yml) se ejecuta en cada `push` a `main` y en cada `pull request`. Instala las dependencias y ejecuta los tests de `ventas_app` con un umbral mínimo de cobertura del 60 %.
+
+Para ejecutar la misma validación localmente:
+
+```bash
+pytest -q --cov=ventas_app --cov-report=term-missing --cov-fail-under=60
+```
+
 ## Objetivo
 
 Desarrollar **dos** soluciones en Python que demuestren:
