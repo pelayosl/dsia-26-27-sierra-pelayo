@@ -5,3 +5,6 @@ class DataLoadError(Exception):
 
 class ValidationError(Exception):
     '''Error de validación de los datos'''
+
+class SchemaError(ValidationError):
+    '''Faltan columnas obligatorias en los datos de origen'''
