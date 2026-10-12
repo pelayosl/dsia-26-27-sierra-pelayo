@@ -1,5 +1,8 @@
 # Proyecto I — Programación avanzada en Python (10 %)
 
+>[!NOTE]
+> Existe un README dentro de cada uno de los subproyectos (partes A y B) con explicaciones concretas para cada uno de ellos
+
 **Temas:** 1 (y pytest + CI del Tema 2)  
 **Presentación / arranque en clase:** 14 de septiembre de 2026  
 **Entrega orientativa:** tras la sesión de pytest/CI (**28 sep 2026**), salvo indicación distinta en aula.
