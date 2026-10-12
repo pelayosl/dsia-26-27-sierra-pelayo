@@ -3,7 +3,7 @@ from typing import Protocol
 import pandas as pd
 from ventas_app.errors import DataLoadError
 
-DATA_DIR = Path(__file__).parent / "Datos"
+DATA_DIR = Path(__file__).parents[1] / "data"
 
 class SalesRepository(Protocol):
     """Abstracción de lectura (Dependency Inversion)."""
