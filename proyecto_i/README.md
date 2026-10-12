@@ -8,9 +8,11 @@
 
 El workflow [`ci.yml`](.github/workflows/ci.yml) se ejecuta en cada `push` a `main` y en cada `pull request`. Instala las dependencias y ejecuta los tests de `ventas_app` con un umbral mínimo de cobertura del 60 %.
 
-Para ejecutar la misma validación localmente:
+Desde la carpeta `proyecto_i`, los comandos de validación son:
 
 ```bash
+pytest -q
+pytest -q -m "not integration"
 pytest -q --cov=ventas_app --cov-report=term-missing --cov-fail-under=60
 ```
 
@@ -166,10 +168,10 @@ Comandos esperados en el README:
 ```bash
 pytest -q
 pytest -q -m "not integration"
-pytest --cov=ventas_app --cov=internet_app --cov-report=term-missing --cov-fail-under=60
+pytest -q --cov=ventas_app --cov-report=term-missing --cov-fail-under=60
 ```
 
-> Ajusta los nombres `--cov=...` a tus paquetes reales. El umbral **60 %** es obligatorio (`--cov-fail-under=60`).
+El umbral **60 %** es obligatorio (`--cov-fail-under=60`).
 
 Dependencia: `pytest-cov` (añádela a tu `requirements.txt`).
 
