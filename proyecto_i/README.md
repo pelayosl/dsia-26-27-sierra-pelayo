@@ -6,14 +6,14 @@
 
 ## CI
 
-El workflow [`ci.yml`](.github/workflows/ci.yml) se ejecuta en cada `push` a `main` y en cada `pull request`. Instala las dependencias y ejecuta los tests de `ventas_app` con un umbral mínimo de cobertura del 60 %.
+El workflow [`ci.yml`](.github/workflows/ci.yml) se ejecuta en cada `push` a `main` y en cada `pull request`. Instala las dependencias y ejecuta, desde `proyecto_i`, los tests de `ventas_app` (Parte A) y `energy_forecast_app` (Parte B) con un umbral mínimo de cobertura del 60 %.
 
 Desde la carpeta `proyecto_i`, los comandos de validación son:
 
 ```bash
 pytest -q
 pytest -q -m "not integration"
-pytest -q --cov=ventas_app --cov-report=term-missing --cov-fail-under=60
+pytest -q --cov=ventas_app --cov=energy_forecast_app --cov-report=term-missing --cov-fail-under=60
 ```
 
 ## Objetivo

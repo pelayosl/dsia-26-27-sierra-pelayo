@@ -26,7 +26,7 @@ El dataset completo (~68.000 filas) **no se incluye en el repositorio** por tama
 | Métrica | Valor |
 |---|---|
 | Fichero | [`data/energy_weather_es_hourly_sample.csv`](../data/energy_weather_es_hourly_sample.csv) |
-| Periodo | `2025-04-01T00:00:00+00:00` → `2026-03-31T23:00:00+00:00` (UTC) |
+| Periodo | `2025-04-01T00:00:00+02:00` → `2026-03-31T23:00:00+02:00` (hora local `Europe/Madrid`: 12 meses naturales completos) |
 | Filas | 8,760 (12,8 % del dataset completo) |
 | Tamaño | 0.9 MB |
 
@@ -64,3 +64,40 @@ No incluye el periodo COVID (`covid_flag` es siempre 0 en la muestra).
   Cita: *Energy-Charts.info, Fraunhofer ISE, datos de ENTSO-E*.
 - **Meteorología:** [Open-Meteo](https://open-meteo.com). Licencia [CC BY 4.0](https://open-meteo.com/en/license);
   la API gratuita es solo para uso no comercial. Cita: *Weather data by Open-Meteo.com*.
+
+---
+## Ejecución
+
+Desde la carpeta `proyecto_i`:
+
+```bash
+python -m energy_forecast_app.cli --input data/energy_weather_es_hourly_sample.csv --output data/energy_weather_es_hourly_limpio.csv
+```
+
+---
+## Resultados testing
+
+Tests en `tests/energy/` (loader, validator, metrics y cli). El test de integración comprueba que la muestra tiene **8.723 filas válidas y 37 inválidas**.
+
+```python
+pytest -q tests/energy
+```
+```bash
+42 passed
+```
+
+```python
+pytest -q tests/energy -m "not integration"
+```
+```bash
+41 passed, 1 deselected
+```
+
+---
+## CI
+
+Workflow: `.github/workflows/ci.yml` (único para el repositorio; cubre Parte A y Parte B).
+
+```bash
+pytest -q --cov=ventas_app --cov=energy_forecast_app --cov-report=term-missing --cov-fail-under=60
+```
