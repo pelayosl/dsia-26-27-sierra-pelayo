@@ -59,7 +59,7 @@ def test_precio_debe_ser_positivo(ventas_mini, precio, esperado):
 
 @pytest.mark.integration
 def test_csv_curso_tiene_140_validas_y_10_invalidas():
-    ruta = Path(__file__).parents[1] / "data" / "ventas.csv"
+    ruta = Path(__file__).parents[2] / "data" / "ventas.csv"
     datos = CsvSalesRepository(ruta).load()
 
     validos, errores = SalesValidator().validate_sales(datos)
