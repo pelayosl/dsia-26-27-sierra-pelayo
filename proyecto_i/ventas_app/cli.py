@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 # En cli.py, orquesta con argparse:
-# python -m ventas_app.cli --input ventas_app/Datos/ventas.csv --output Datos/ventas_limpias.csv
+# python -m ventas_app.cli --input data/ventas.csv --output data/ventas_limpias.csv
 
 def main(input_path: Path, output_path: Path):
     repo: SalesRepository = CsvSalesRepository(input_path)
@@ -27,10 +27,10 @@ def main(input_path: Path, output_path: Path):
     output_path = Path(output_path)
 
     if not output_path.is_absolute():
-        if output_path.parts and output_path.parts[0] == "Datos":
-            output_path = Path(__file__).parent / output_path
+        if output_path.parts and output_path.parts[0] == "data":
+            output_path = Path(__file__).parents[1] / output_path
         else:
-            output_path = Path(__file__).parent / "Datos" / output_path
+            output_path = Path(__file__).parents[1] / "data" / output_path
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
