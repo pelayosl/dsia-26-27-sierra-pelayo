@@ -1,3 +1,4 @@
+"""Validación de los datos horarios y conversión de las filas válidas a `EnergyRecord`."""
 
 import pandas as pd
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ REQUIRED_COLUMNS = ["time_utc", "time_local", *NUMERIC_COLUMNS, *FLAG_COLUMNS]
 
 @dataclass(frozen=True)
 class EnergyRecord:
+    """Hora válida de demanda y meteorología (inmutable)."""
     time_utc: datetime
     time_local: datetime
     load_mw: float
@@ -41,14 +43,17 @@ class EnergyRecord:
 
     @property
     def hour_local(self) -> int:
+        """Hora del día en `Europe/Madrid` (0-23)."""
         return self.time_local.hour
 
     @property
     def year_month(self) -> str:
+        """Mes en hora local, con formato `YYYY-MM`."""
         return self.time_local.strftime("%Y-%m")
 
 
 class EnergyValidator:
+    """Separa las horas válidas de las inválidas (solo valida, SRP)."""
 
     def validate_energy(self, frame: pd.DataFrame) -> tuple[list[EnergyRecord], pd.DataFrame]:
         '''

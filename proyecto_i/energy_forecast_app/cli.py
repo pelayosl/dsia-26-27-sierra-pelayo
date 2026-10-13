@@ -1,3 +1,5 @@
+"""Punto de entrada por línea de comandos del pipeline de energía."""
+
 import argparse
 import logging
 from pathlib import Path
@@ -15,6 +17,10 @@ logger = logging.getLogger(__name__)
 # python -m energy_forecast_app.cli --input data/energy_weather_es_hourly_sample.csv --output data/energy_weather_es_hourly_limpio.csv
 
 def main(input_path: Path, output_path: Path):
+    """Carga, valida y guarda las horas válidas, y muestra las métricas de demanda.
+
+    Si `output_path` es relativa, el fichero se guarda dentro de `proyecto_i/data/`.
+    """
     repo: EnergyRepository = CsvEnergyRepository(input_path)
     validator = EnergyValidator()
     metrics = EnergyMetrics()
@@ -72,6 +78,7 @@ def main(input_path: Path, output_path: Path):
         logger.info("  %s: %.0f", day_type, mean)
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Lee `--input` y `--output`; con `argv=None` usa los argumentos de la línea de comandos."""
     parser = argparse.ArgumentParser(description="Procesar demanda eléctrica horaria y meteorología.")
     parser.add_argument("--input", required=True, help="Ruta del archivo CSV de entrada.")
     parser.add_argument("--output", required=True, help="Ruta del archivo CSV de salida para registros válidos.")

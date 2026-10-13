@@ -1,3 +1,5 @@
+"""Tests del repositorio de `energy_forecast_app.loader`."""
+
 import pandas as pd
 import pytest
 
@@ -6,6 +8,7 @@ from energy_forecast_app.loader import CsvEnergyRepository
 
 
 def test_carga_de_csv_valido(tmp_path, fila_valida):
+    """Un CSV existente se carga con todas sus columnas."""
     ruta = tmp_path / "energia.csv"
     pd.DataFrame([fila_valida]).to_csv(ruta, index=False)
 
@@ -16,6 +19,7 @@ def test_carga_de_csv_valido(tmp_path, fila_valida):
 
 
 def test_carga_de_csv_inexistente_lanza_error(tmp_path):
+    """Un CSV que no existe lanza `DataLoadError`."""
     repositorio = CsvEnergyRepository(tmp_path / "no-existe.csv")
 
     with pytest.raises(DataLoadError):
@@ -23,6 +27,7 @@ def test_carga_de_csv_inexistente_lanza_error(tmp_path):
 
 
 def test_carga_de_csv_vacio_lanza_error(tmp_path):
+    """Un CSV vacío lanza `DataLoadError`."""
     ruta = tmp_path / "vacio.csv"
     ruta.write_text("")
 

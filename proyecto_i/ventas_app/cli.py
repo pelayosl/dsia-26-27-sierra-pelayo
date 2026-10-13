@@ -1,3 +1,5 @@
+"""Punto de entrada por línea de comandos del pipeline de ventas."""
+
 import logging
 from pathlib import Path
 
@@ -14,6 +16,10 @@ logger = logging.getLogger(__name__)
 # python -m ventas_app.cli --input data/ventas.csv --output data/ventas_limpias.csv
 
 def main(input_path: Path, output_path: Path):
+    """Carga, valida y guarda las ventas válidas, y muestra el importe por región.
+
+    Si `output_path` es relativa, el fichero se guarda dentro de `proyecto_i/data/`.
+    """
     repo: SalesRepository = CsvSalesRepository(input_path)
     validator = SalesValidator()
     metrics = SalesMetrics()
