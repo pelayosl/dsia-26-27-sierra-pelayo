@@ -1,3 +1,5 @@
+"""Métricas sobre las horas válidas de demanda y meteorología."""
+
 import math
 from collections.abc import Callable, Hashable
 
@@ -46,6 +48,7 @@ class EnergyMetrics:
     def _mean_load_by(
         validos: list[EnergyRecord], key: Callable[[EnergyRecord], Hashable]
     ) -> dict:
+        """Demanda media por grupo; `key` indica a qué grupo pertenece cada registro."""
         sums: dict = {}
         counts: dict = {}
         for record in validos:

@@ -1,3 +1,5 @@
+"""Tests del punto de entrada `energy_forecast_app.cli`."""
+
 import logging
 from pathlib import Path
 
@@ -8,6 +10,7 @@ from energy_forecast_app.cli import main, parse_args
 
 
 def test_cli_genera_csv_con_registros_validos(tmp_path: Path, fila_valida, caplog):
+    """El CLI guarda solo las horas válidas, conserva el formato de fecha y registra el recuento."""
     input_path = tmp_path / "energia.csv"
     output_path = tmp_path / "energia_limpia.csv"
     pd.DataFrame(
@@ -29,6 +32,7 @@ def test_cli_genera_csv_con_registros_validos(tmp_path: Path, fila_valida, caplo
 
 
 def test_parse_args_lee_entrada_y_salida():
+    """`parse_args` lee las rutas de entrada y salida."""
     args = parse_args(["--input", "entrada.csv", "--output", "salida.csv"])
 
     assert args.input == "entrada.csv"
@@ -36,5 +40,6 @@ def test_parse_args_lee_entrada_y_salida():
 
 
 def test_parse_args_sin_argumentos_obligatorios_termina():
+    """Sin los argumentos obligatorios, argparse termina el programa."""
     with pytest.raises(SystemExit):
         parse_args([])

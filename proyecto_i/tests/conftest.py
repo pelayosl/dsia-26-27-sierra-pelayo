@@ -1,3 +1,5 @@
+"""Configuración común de pytest: añade `proyecto_i` al path para importar las dos apps."""
+
 import sys
 from pathlib import Path
 

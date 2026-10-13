@@ -1,9 +1,11 @@
+"""Validación de las ventas y conversión de las filas válidas a `SalesRecord`."""
 
 import pandas as pd
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SalesRecord:
+    """Venta válida (inmutable)."""
     region: str
     product: str
     units: float
@@ -11,10 +13,12 @@ class SalesRecord:
 
     @property
     def amount(self) -> float:
+        """Importe de la venta: unidades x precio unitario."""
         return self.units * self.unit_price
 
 
 class SalesValidator:
+    """Separa las ventas válidas de las inválidas (solo valida, SRP)."""
 
     def validate_sales(self, frame: pd.DataFrame) -> tuple[list[SalesRecord], pd.DataFrame]:
         '''

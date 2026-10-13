@@ -1,4 +1,4 @@
-# Módulo para describir errores de negocio
+"""Excepciones de dominio del pipeline de ventas."""
 
 class DataLoadError(Exception):
     '''Error al cargar datos de origen'''

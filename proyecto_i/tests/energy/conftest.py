@@ -1,3 +1,5 @@
+"""Fixtures compartidas por los tests de `energy_forecast_app`."""
+
 import pytest
 
 

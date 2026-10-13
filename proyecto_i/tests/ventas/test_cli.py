@@ -1,3 +1,5 @@
+"""Tests del punto de entrada `ventas_app.cli`."""
+
 from pathlib import Path
 
 import pandas as pd
@@ -6,6 +8,7 @@ from ventas_app.cli import main
 
 
 def test_cli_genera_csv_con_registros_validos(tmp_path: Path):
+    """El CLI guarda solo las ventas válidas y calcula su importe."""
     input_path = tmp_path / "ventas.csv"
     output_path = tmp_path / "ventas_limpias.csv"
     pd.DataFrame(
