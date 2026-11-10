@@ -1,22 +1,64 @@
 """Shared fixtures. Everything in memory or in `tmp_path`: no network or absolute paths."""
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from energy_forecast.config import Settings
+from energy_forecast.domain.schema import FLAG_COLUMNS, LOCAL_TIMEZONE, MIN_HISTORY_HOURS
+
+OBSERVATIONS_START = "2025-01-06T00:00:00+00:00"  # a Monday, outside any DST change
+OBSERVATIONS_HOURS = MIN_HISTORY_HOURS + 48
+BASE_LOAD_MW = 30_000.0
+DAILY_AMPLITUDE_MW = 5_000.0
+
+# Row positions with invalid values in `invalid_observations`
+DUPLICATED_ROWS = (9, 10)
+NULL_LOAD_ROW = 20
+OUT_OF_RANGE_LOAD_ROW = 30
+INVALID_FLAG_ROW = 40
 
 
 @pytest.fixture
-def hourly_observations():
-    """Synthetic DataFrame with ≥ `MIN_HISTORY_HOURS` + 48 consecutive hours and all `REQUIRED_COLUMNS`."""
-    # TODO: UTC hourly grid; `load_mw` with a daily pattern (e.g. sine) so results are predictable.
-    raise NotImplementedError
+def hourly_observations() -> pd.DataFrame:
+    """Synthetic DataFrame with `MIN_HISTORY_HOURS` + 48 consecutive hours and all `REQUIRED_COLUMNS`.
+
+    Same format as the dsia-dataset CSV (dates as ISO 8601 strings), so it can go through `validate_observations`.
+    `load_mw` follows a daily sine pattern so results are predictable.
+    """
+    time_utc = pd.date_range(OBSERVATIONS_START, periods=OBSERVATIONS_HOURS, freq="h")
+    hour = time_utc.hour.to_numpy()
+    frame = pd.DataFrame(
+        {
+            "time_utc": time_utc.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+            "time_local": time_utc.tz_convert(LOCAL_TIMEZONE).map(lambda t: t.isoformat()),
+            "load_mw": BASE_LOAD_MW + DAILY_AMPLITUDE_MW * np.sin(2 * np.pi * hour / 24),
+            "temperature_2m": 10.0 + 5.0 * np.sin(2 * np.pi * (hour - 9) / 24),
+            "relative_humidity_2m": 60.0,
+            "wind_speed_10m": 10.0,
+            "shortwave_radiation": np.where((hour >= 7) & (hour <= 17), 300.0, 0.0),
+            "precipitation": 0.0,
+        }
+    )
+    for column in FLAG_COLUMNS:
+        frame[column] = 0
+    return frame
 
 
 @pytest.fixture
-def invalid_observations(hourly_observations):
-    """Copy with invalid cases: duplicated `time_utc`, null and out-of-range `load_mw`, flag = 2."""
-    # TODO: build from `hourly_observations`.
-    raise NotImplementedError
+def invalid_observations(hourly_observations: pd.DataFrame) -> pd.DataFrame:
+    """Copy with invalid cases: duplicated `time_utc`, null and out-of-range `load_mw`, flag = 2.
+
+    Expected after validation: 3 rejected rows (`DUPLICATED_ROWS` + `INVALID_FLAG_ROW`) and
+    `load_mw` = NaN in `NULL_LOAD_ROW` and `OUT_OF_RANGE_LOAD_ROW`.
+    """
+    frame = hourly_observations.copy()
+    first, second = DUPLICATED_ROWS
+    frame.loc[second, "time_utc"] = frame.loc[first, "time_utc"]
+    frame.loc[NULL_LOAD_ROW, "load_mw"] = np.nan
+    frame.loc[OUT_OF_RANGE_LOAD_ROW, "load_mw"] = 60_000.0
+    frame.loc[INVALID_FLAG_ROW, "is_holiday"] = 2
+    return frame
 
 
 @pytest.fixture
