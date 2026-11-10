@@ -1,4 +1,12 @@
-"""Input contract validation for hourly observations."""
+"""Input contract validation for hourly observations.
+
+In project i, this code was implemented using OOP. However, given the fact that
+project ii involves sending vectorised data to repositories and sklearn,
+creating objects and then turning them back into DataFrames produces unnecessary
+overhead.
+
+OOP is used later with Pydantic models to serialise data to JSON and send it
+through services, CLI and API."""
 
 import pandas as pd
 
