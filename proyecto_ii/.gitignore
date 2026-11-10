@@ -1,0 +1,14 @@
+# Base de datos local y dataset completo (se regeneran con `ingest` / dsia-dataset)
+data/*.db
+data/energy_weather_es_hourly.csv
+
+# Informes de cada previsión
+reports/forecast_*.json
+
+# Modelos entrenados
+*.joblib
+
+# General `pycache` y archivos de configuración de IDEs
+__pycache__/
+*.py[cod]
+*.vscode/
