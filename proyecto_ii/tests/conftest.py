@@ -7,10 +7,12 @@ import pandas as pd
 import pytest
 
 from energy_forecast.config import Settings
-from energy_forecast.domain.schema import FLAG_COLUMNS, LOCAL_TIMEZONE, MIN_HISTORY_HOURS
+from energy_forecast.domain.schema import FLAG_COLUMNS, HORIZON_HOURS, LOCAL_TIMEZONE, MIN_HISTORY_HOURS
 
 OBSERVATIONS_START = "2025-01-06T00:00:00+00:00"  # a Monday, outside any DST change
 OBSERVATIONS_HOURS = MIN_HISTORY_HOURS + 48
+# Last hour of `hourly_observations`: origin of a forecast right after the observations
+FORECAST_ORIGIN = pd.Timestamp(OBSERVATIONS_START) + pd.Timedelta(hours=OBSERVATIONS_HOURS - 1)
 BASE_LOAD_MW = 30_000.0
 DAILY_AMPLITUDE_MW = 5_000.0
 
@@ -63,11 +65,25 @@ def invalid_observations(hourly_observations: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+FORECAST_TEMPERATURE_C = 12.0
+
+
 @pytest.fixture
-def weather_forecast_24h():
-    """24-hour weather forecast with fixed values (`time_utc` + `WEATHER_COLUMNS`)."""
-    # TODO: known constant values.
-    raise NotImplementedError
+def weather_forecast_24h() -> pd.DataFrame:
+    """Weather forecast for the 24 hours after the last hour of `hourly_observations` (constant values).
+
+    Its origin is `FORECAST_ORIGIN`; same columns as `WeatherForecastClient.next_hours` (`time_utc` + `WEATHER_COLUMNS`).
+    """
+    return pd.DataFrame(
+        {
+            "time_utc": pd.date_range(FORECAST_ORIGIN + pd.Timedelta(hours=1), periods=HORIZON_HOURS, freq="h"),
+            "temperature_2m": FORECAST_TEMPERATURE_C,
+            "relative_humidity_2m": 55.0,
+            "wind_speed_10m": 12.0,
+            "shortwave_radiation": 0.0,
+            "precipitation": 0.0,
+        }
+    )
 
 
 @pytest.fixture
