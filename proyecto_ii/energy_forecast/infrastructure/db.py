@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import Column, DateTime, Float, Integer, MetaData, String, Table, Text, create_engine, make_url
 from sqlalchemy.engine import Engine
+from sqlalchemy.pool import NullPool
 
 from energy_forecast.domain.schema import FLAG_COLUMNS, TARGET_COLUMN, TIME_COLUMN, WEATHER_COLUMNS
 
@@ -55,11 +56,14 @@ pipeline_runs = Table(
 def create_db_engine(database_url: str) -> Engine:
     """Creates the engine from `DATABASE_URL` (SQLite locally; Postgres possible in Project III).
 
-    For a SQLite file, its folder is created if it does not exist.
+    For a SQLite file, its folder is created if it does not exist, and connections are not pooled (`NullPool`):
+    each one is closed when released, so no open file handles are left behind if the engine is never
+    disposed (e.g. in a CLI). Opening a SQLite connection is cheap.
     """
     url = make_url(database_url)
     if url.get_backend_name() == "sqlite" and url.database not in (None, "", ":memory:"):
         Path(url.database).parent.mkdir(parents=True, exist_ok=True)
+        return create_engine(url, poolclass=NullPool) # NullPool closes the connection when released
     return create_engine(url)
 
 

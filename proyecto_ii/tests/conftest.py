@@ -1,5 +1,7 @@
 """Shared fixtures. Everything in memory or in `tmp_path`: no network or absolute paths."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -92,3 +94,19 @@ def mock_settings(tmp_path):
         hf_token=None,
         hf_model=None,
     )
+
+
+@pytest.fixture
+def restore_root_logger():
+    """`setup_logging` uses `force=True` and replaces the root handlers (including pytest's): restore them afterwards.
+
+    Use it in any test that calls `setup_logging`, directly or through a CLI's `main`.
+    """
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
+    yield
+    for handler in root.handlers:
+        if handler not in saved_handlers:
+            handler.close()  # releases the log file (needed on Windows to delete tmp_path)
+    root.handlers = saved_handlers
+    root.setLevel(saved_level)

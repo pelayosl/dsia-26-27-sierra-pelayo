@@ -1,4 +1,4 @@
-"""Lectura del CSV que produce dsia-dataset (fuente externa, solo lectura)."""
+"""Reads the CSV produced by dsia-dataset (external source, read-only)."""
 
 from pathlib import Path
 from typing import Protocol
@@ -9,13 +9,13 @@ from energy_forecast.domain.errors import DataLoadError
 
 
 class DatasetSource(Protocol):
-    """Abstracción de la fuente externa de datos (Dependency Inversion)."""
+    """Abstraction of the external data source (Dependency Inversion)."""
     def read(self) -> pd.DataFrame:
-        """Devuelve los datos de origen sin validar."""
+        """Return the source data, unvalidated."""
 
 
 class CsvDatasetSource:
-    """Lee `energy_weather_es_hourly.csv` desde una ruta local o una URL."""
+    """Read `energy_weather_es_hourly.csv` from a local path or a URL."""
 
     URL_PREFIXES = ("http://", "https://", "file://")
 
