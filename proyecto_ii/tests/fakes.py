@@ -5,11 +5,16 @@ runs the same tests against the SQL and in-memory repositories.
 """
 
 from datetime import datetime, timedelta
+from typing import Any
 
 import pandas as pd
+from pydantic_core import to_jsonable_python
+from sklearn.base import BaseEstimator
 
+from energy_forecast.domain.errors import ModelNotFoundError
 from energy_forecast.domain.models import Forecast, ForecastSummary
 from energy_forecast.domain.schema import REQUIRED_COLUMNS, TARGET_COLUMN, TIME_COLUMN
+from energy_forecast.infrastructure.model_store import StoredModel
 from energy_forecast.infrastructure.repositories import RUN_FINAL_STATUSES, RUN_KINDS, RUN_STATUS_RUNNING
 
 
@@ -121,18 +126,23 @@ class FakeWeatherForecastClient:
 
 
 class FakeModelStore:
-    """In-memory `ModelStore`."""
+    """In-memory `ModelStore`. Versions are `<name>-test-v1`, `<name>-test-v2`, …"""
 
-    def __init__(self, stored_model=None) -> None:
+    def __init__(self, stored_model: StoredModel | None = None) -> None:
         self._stored = stored_model
+        self.saves = 0
 
-    def save(self, model, metrics: dict) -> str:
-        # TODO: store in memory and return a fixed version ("test-v1").
-        raise NotImplementedError
+    def save(self, model: BaseEstimator, name: str, metrics: dict[str, Any]) -> str:
+        self.saves += 1
+        version = f"{name}-test-v{self.saves}"
+        report = to_jsonable_python({"model_version": version, **metrics})
+        self._stored = StoredModel(model=model, version=version, metrics=report)
+        return version
 
-    def load(self):
-        # TODO: return `self._stored` or raise `ModelNotFoundError` if it is None.
-        raise NotImplementedError
+    def load(self) -> StoredModel:
+        if self._stored is None:
+            raise ModelNotFoundError("No trained model in the fake store")
+        return self._stored
 
 
 class FailingAIClient:
@@ -141,5 +151,5 @@ class FailingAIClient:
     model = "fake/model"
 
     def explain(self, summary: ForecastSummary) -> str:
-        # TODO: lanzar `ExternalServiceError`.
+        # TODO: raise `ExternalServiceError`.
         raise NotImplementedError

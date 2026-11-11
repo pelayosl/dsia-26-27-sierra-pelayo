@@ -7,6 +7,9 @@ import pandas as pd
 import pytest
 
 from energy_forecast.config import Settings
+from energy_forecast.domain.features import build_training_frame
+from energy_forecast.domain.modeling import build_hgb_pipeline
+from energy_forecast.domain.validator import validate_observations
 from energy_forecast.domain.schema import FLAG_COLUMNS, HORIZON_HOURS, LOCAL_TIMEZONE, MIN_HISTORY_HOURS
 
 OBSERVATIONS_START = "2025-01-06T00:00:00+00:00"  # a Monday, outside any DST change
@@ -88,9 +91,10 @@ def weather_forecast_24h() -> pd.DataFrame:
 
 @pytest.fixture
 def small_trained_model(hourly_observations):
-    """Small HGB model trained on `hourly_observations` (for loading and inference tests)."""
-    # TODO: `build_training_frame` + `build_hgb_pipeline` with low `max_iter`.
-    raise NotImplementedError
+    """Small HGB pipeline trained on `hourly_observations` (for loading and inference tests)."""
+    observations, _ = validate_observations(hourly_observations)
+    X, y = build_training_frame(observations)
+    return build_hgb_pipeline(max_iter=20, early_stopping=False).fit(X, y)
 
 
 @pytest.fixture
