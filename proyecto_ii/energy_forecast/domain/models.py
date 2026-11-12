@@ -35,13 +35,13 @@ class Forecast(DomainModel):
         for label, value in (("origin", self.origin),
                              *((f"predictions[{i}].time_utc", p.time_utc) for i, p in enumerate(self.predictions))):
             if value.tzinfo is None or value.utcoffset() != timedelta(0):
-                raise ValueError(f"{label} debe tener zona horaria UTC")
+                raise ValueError(f"{label} must be in UTC")
         for i, prediction in enumerate(self.predictions, start=1):
             expected = self.origin + timedelta(hours=i)
             if prediction.time_utc != expected:
                 raise ValueError(
-                    f"predictions[{i - 1}].time_utc debe ser {expected.isoformat()}, "
-                    f"es {prediction.time_utc.isoformat()}"
+                    f"predictions[{i - 1}].time_utc must be {expected.isoformat()}, "
+                    f"got {prediction.time_utc.isoformat()}"
                 )
         return self
 

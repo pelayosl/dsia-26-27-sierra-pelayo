@@ -1,4 +1,4 @@
-"""Tests of `domain.modeling` and `domain.predictor` (loading and inference of the sklearn model)."""
+"""Tests of `domain.modeling`: candidate models and temporal split."""
 
 import numpy as np
 import pandas as pd
@@ -259,12 +259,3 @@ def test_temporal_split_is_a_frozen_dataclass(split_data):
     assert isinstance(split, TemporalSplit)
     with pytest.raises(AttributeError):
         split.X_train = split.X_test
-
-
-# ---------------------------------------------------------------- inference (step 3.2)
-
-
-@pytest.mark.skip(reason="TODO (paso 3.2): implementar `predict_forecast`")
-def test_predict_forecast_returns_24_hourly_predictions(small_trained_model, hourly_observations, weather_forecast_24h):
-    # TODO: `predict_forecast` → `Forecast` with 24 consecutive `HourlyPrediction`s after the origin.
-    ...
