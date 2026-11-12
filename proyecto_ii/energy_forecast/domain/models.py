@@ -69,18 +69,25 @@ class IngestionReport(DomainModel):
 
 
 class ModelMetrics(DomainModel):
-    """Metrics of a model on the test set."""
+    """Metrics of a model on a set of hours (MAE and RMSE in MW, MAPE in %)."""
     mae: float = Field(ge=0)
     rmse: float = Field(ge=0)
     mape: float = Field(ge=0)
 
 
 class TrainingResult(DomainModel):
-    """Result of a training run: metrics per model and version of the persisted model."""
+    """Result of a training run: metrics per model and version of the persisted model.
+
+    `best_model` is chosen by `validation_metrics` (fitted on train); `metrics` are the test metrics of each
+    model fitted on train + validation, which is the persisted one. The test set is not used to choose.
+    """
     model_version: str
     best_model: str
+    validation_metrics: dict[str, ModelMetrics]
     metrics: dict[str, ModelMetrics]
     mae_by_hour: dict[int, float]
     train_start: datetime
     train_end: datetime
+    test_start: datetime
+    test_end: datetime
     features: tuple[str, ...]

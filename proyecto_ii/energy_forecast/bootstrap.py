@@ -12,13 +12,16 @@ from sqlalchemy.engine import Engine
 from energy_forecast.config import Settings
 from energy_forecast.infrastructure.dataset_source import CsvDatasetSource
 from energy_forecast.infrastructure.db import create_db_engine, init_schema
+from energy_forecast.infrastructure.model_store import JoblibModelStore
 from energy_forecast.infrastructure.repositories import SqlObservationRepository, SqlPipelineRunRepository
 from energy_forecast.services.ingestion import IngestionService
+from energy_forecast.services.training import TrainingService
 
 if TYPE_CHECKING:
-    # TODO (steps 2.5 and 3.3): switch to regular imports when implementing `build_training_service` and `build_forecast_service`
+    # TODO (step 3.3): switch to a regular import when implementing `build_forecast_service`
     from energy_forecast.services.forecast import ForecastService
-    from energy_forecast.services.training import TrainingService
+
+METRICS_FILE_NAME = "metrics.json"
 
 
 def _database(settings: Settings) -> Engine:
@@ -38,10 +41,18 @@ def build_ingestion_service(settings: Settings) -> IngestionService:
     )
 
 
+def _model_store(settings: Settings) -> JoblibModelStore:
+    return JoblibModelStore(settings.model_path, settings.reports_dir / METRICS_FILE_NAME)
+
+
 def build_training_service(settings: Settings) -> TrainingService:
     """SQL repositories + `JoblibModelStore(settings.model_path, settings.reports_dir / "metrics.json")`."""
-    # TODO: same as above, with `JoblibModelStore`.
-    raise NotImplementedError
+    engine = _database(settings)
+    return TrainingService(
+        observations=SqlObservationRepository(engine),
+        model_store=_model_store(settings),
+        runs=SqlPipelineRunRepository(engine),
+    )
 
 
 def build_forecast_service(settings: Settings) -> ForecastService:

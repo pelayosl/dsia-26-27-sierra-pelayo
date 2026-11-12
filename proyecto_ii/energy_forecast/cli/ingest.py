@@ -7,11 +7,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from pydantic import ValidationError as ConfigError
-
 from energy_forecast.bootstrap import build_ingestion_service
-from energy_forecast.cli import EXIT_FAILURE, EXIT_INPUT_ERROR, EXIT_OK
-from energy_forecast.config import load_settings
+from energy_forecast.cli import EXIT_FAILURE, EXIT_INPUT_ERROR, EXIT_OK, load_cli_settings
 from energy_forecast.domain.errors import DataLoadError, ValidationError
 from energy_forecast.logging_config import get_logger, setup_logging
 
@@ -31,10 +28,8 @@ def main(argv: list[str] | None = None) -> int:
     """Runs the ingestion and returns the exit code (0 ok, 1 system failure, 2 broken input)."""
     args = parse_args(argv)
 
-    try:
-        settings = load_settings()
-    except ConfigError as exc:
-        print(f"Invalid configuration: {exc}", file=sys.stderr)
+    settings = load_cli_settings()
+    if settings is None:
         return EXIT_INPUT_ERROR
     if args.input:
         settings = settings.model_copy(update={"dataset_path": args.input})

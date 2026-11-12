@@ -1,9 +1,12 @@
 """Smoke tests of the CLIs (exit codes), with `tmp_path` and `AI_PROVIDER=mock`."""
 
+import json
+
 import pytest
 
 from energy_forecast.cli import EXIT_FAILURE, EXIT_INPUT_ERROR, EXIT_OK
-from energy_forecast.cli import ingest
+from energy_forecast.cli import ingest, train
+from energy_forecast.domain import modeling
 from energy_forecast.config import load_settings
 from energy_forecast.infrastructure.db import create_db_engine
 from energy_forecast.infrastructure.repositories import SqlObservationRepository
@@ -97,10 +100,79 @@ def test_ingest_unexpected_error_returns_exit_1(cli_env, monkeypatch):
     assert ingest.main([]) == EXIT_FAILURE
 
 
-# ---------------------------------------------------------------- train / forecast
+# ---------------------------------------------------------------- train
 
 
-@pytest.mark.skip(reason="TODO (pasos 2.5 y 3.3): implementar")
+@pytest.fixture
+def fast_hgb(monkeypatch):
+    """HGB with few trees, so the real training runs in under a second."""
+    monkeypatch.setitem(modeling.HGB_PARAMS, "max_iter", 20)
+
+
+def test_train_parse_args_defaults():
+    args = train.parse_args([])
+
+    assert args.tune is False
+    assert args.log_file is None
+    assert args.verbose is False
+
+
+def test_ingest_then_train_saves_model_and_metrics(cli_env, training_span_observations, fast_hgb, capsys):
+    training_span_observations.to_csv(cli_env / "energy_weather_es_hourly.csv", index=False)
+    assert ingest.main([]) == EXIT_OK
+
+    assert train.main([]) == EXIT_OK
+
+    metrics = json.loads((cli_env / "reports" / "metrics.json").read_text(encoding="utf-8"))
+    assert (cli_env / "models" / "model.joblib").exists()
+    assert set(metrics["metrics"]) == {"naive", "ridge", "hgb"}
+    output = capsys.readouterr().out
+    assert "<- saved" in output and metrics["model_version"] in output
+
+
+def test_train_without_observations_returns_exit_2(cli_env):
+    assert train.main([]) == EXIT_INPUT_ERROR
+
+    assert not (cli_env / "models" / "model.joblib").exists()
+
+
+def test_train_invalid_configuration_returns_exit_2(cli_env, monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "hf")  # without HF_TOKEN / HF_MODEL
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.delenv("HF_MODEL", raising=False)
+
+    assert train.main([]) == EXIT_INPUT_ERROR
+
+
+def test_train_unexpected_error_returns_exit_1(cli_env, monkeypatch):
+    class BrokenService:
+        def train(self, tune=False):
+            raise RuntimeError("disk full")
+
+    monkeypatch.setattr(train, "build_training_service", lambda settings: BrokenService())
+
+    assert train.main([]) == EXIT_FAILURE
+
+
+def test_train_passes_tune_flag_to_the_service(cli_env, monkeypatch):
+    received = {}
+
+    class RecordingService:
+        def train(self, tune=False):
+            received["tune"] = tune
+            raise RuntimeError("stop here")
+
+    monkeypatch.setattr(train, "build_training_service", lambda settings: RecordingService())
+
+    train.main(["--tune"])
+
+    assert received == {"tune": True}
+
+
+# ---------------------------------------------------------------- forecast
+
+
+@pytest.mark.skip(reason="TODO (paso 3.3): implementar")
 def test_ingest_train_forecast_happy_path(tmp_path, monkeypatch, hourly_observations):
     # TODO: ingest → 0, train → 0, forecast → 0 and `reports/forecast_*.json` exists.
     #       Replace `OpenMeteoForecastClient` with a fake via `monkeypatch` (no network).

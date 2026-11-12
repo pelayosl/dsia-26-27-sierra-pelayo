@@ -26,20 +26,19 @@ OUT_OF_RANGE_LOAD_ROW = 30
 INVALID_FLAG_ROW = 40
 
 
-@pytest.fixture
-def hourly_observations() -> pd.DataFrame:
-    """Synthetic DataFrame with `MIN_HISTORY_HOURS` + 48 consecutive hours and all `REQUIRED_COLUMNS`.
+def make_raw_observations(start: str, hours: int, noise_mw: float = 0.0, seed: int = 0) -> pd.DataFrame:
+    """Synthetic observations in the dsia-dataset CSV format (dates as ISO 8601 strings, all `REQUIRED_COLUMNS`).
 
-    Same format as the dsia-dataset CSV (dates as ISO 8601 strings), so it can go through `validate_observations`.
-    `load_mw` follows a daily sine pattern so results are predictable.
+    `load_mw` follows a daily sine pattern, plus Gaussian noise of `noise_mw` if given.
     """
-    time_utc = pd.date_range(OBSERVATIONS_START, periods=OBSERVATIONS_HOURS, freq="h")
+    time_utc = pd.date_range(start, periods=hours, freq="h")
     hour = time_utc.hour.to_numpy()
+    noise = np.random.default_rng(seed).normal(0.0, noise_mw, hours) if noise_mw else 0.0
     frame = pd.DataFrame(
         {
             "time_utc": time_utc.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
             "time_local": time_utc.tz_convert(LOCAL_TIMEZONE).map(lambda t: t.isoformat()),
-            "load_mw": BASE_LOAD_MW + DAILY_AMPLITUDE_MW * np.sin(2 * np.pi * hour / 24),
+            "load_mw": BASE_LOAD_MW + DAILY_AMPLITUDE_MW * np.sin(2 * np.pi * hour / 24) + noise,
             "temperature_2m": 10.0 + 5.0 * np.sin(2 * np.pi * (hour - 9) / 24),
             "relative_humidity_2m": 60.0,
             "wind_speed_10m": 10.0,
@@ -50,6 +49,23 @@ def hourly_observations() -> pd.DataFrame:
     for column in FLAG_COLUMNS:
         frame[column] = 0
     return frame
+
+
+# Observations covering the three sets of `temporal_split`: the end of 2024, all of 2025 and the start of 2026
+TRAINING_SPAN_START = "2024-11-01T00:00:00+00:00"
+TRAINING_SPAN_HOURS = (pd.Timestamp("2026-01-15T00:00:00+00:00") - pd.Timestamp(TRAINING_SPAN_START)) // pd.Timedelta(hours=1)
+
+
+@pytest.fixture
+def hourly_observations() -> pd.DataFrame:
+    """`MIN_HISTORY_HOURS` + 48 consecutive hours from `OBSERVATIONS_START`, without noise (predictable results)."""
+    return make_raw_observations(OBSERVATIONS_START, OBSERVATIONS_HOURS)
+
+
+@pytest.fixture
+def training_span_observations() -> pd.DataFrame:
+    """Raw observations from November 2024 to mid-January 2026 (with noise): enough for train, validation and test."""
+    return make_raw_observations(TRAINING_SPAN_START, TRAINING_SPAN_HOURS, noise_mw=300.0)
 
 
 @pytest.fixture
