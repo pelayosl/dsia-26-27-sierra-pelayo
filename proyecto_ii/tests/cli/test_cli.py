@@ -1,15 +1,20 @@
 """Smoke tests of the CLIs (exit codes), with `tmp_path` and `AI_PROVIDER=mock`."""
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
+from energy_forecast import bootstrap
 from energy_forecast.cli import EXIT_FAILURE, EXIT_INPUT_ERROR, EXIT_OK
-from energy_forecast.cli import ingest, train
-from energy_forecast.domain import modeling
+from energy_forecast.cli import forecast, ingest, train
 from energy_forecast.config import load_settings
+from energy_forecast.domain import modeling
+from energy_forecast.domain.errors import ExternalServiceError
+from energy_forecast.domain.schema import HORIZON_HOURS
 from energy_forecast.infrastructure.db import create_db_engine
-from energy_forecast.infrastructure.repositories import SqlObservationRepository
+from energy_forecast.infrastructure.repositories import SqlObservationRepository, SqlPredictionRepository
+from tests.fakes import FakeWeatherForecastClient
 
 pytestmark = pytest.mark.usefixtures("restore_root_logger")
 
@@ -172,14 +177,110 @@ def test_train_passes_tune_flag_to_the_service(cli_env, monkeypatch):
 # ---------------------------------------------------------------- forecast
 
 
-@pytest.mark.skip(reason="TODO (paso 3.3): implementar")
-def test_ingest_train_forecast_happy_path(tmp_path, monkeypatch, hourly_observations):
-    # TODO: ingest → 0, train → 0, forecast → 0 and `reports/forecast_*.json` exists.
-    #       Replace `OpenMeteoForecastClient` with a fake via `monkeypatch` (no network).
-    ...
+@pytest.fixture
+def fake_weather(monkeypatch, weather_forecast_24h):
+    """Replaces Open-Meteo in the composition root: the CLI tests never use the network."""
+    fake = FakeWeatherForecastClient(weather_forecast_24h)
+    monkeypatch.setattr(bootstrap, "OpenMeteoForecastClient", lambda: fake)
+    return fake
 
 
-@pytest.mark.skip(reason="TODO (paso 3.3): implementar")
-def test_forecast_without_model_returns_exit_2(tmp_path, monkeypatch):
-    # TODO: without `model.joblib` → EXIT_INPUT_ERROR.
-    ...
+@pytest.fixture
+def trained(cli_env, training_span_observations, fast_hgb):
+    """Database with observations up to mid-January 2026 and a trained model, through the real CLIs."""
+    training_span_observations.to_csv(cli_env / "energy_weather_es_hourly.csv", index=False)
+    assert ingest.main([]) == EXIT_OK
+    assert train.main([]) == EXIT_OK
+    return cli_env
+
+
+def test_forecast_parse_args_defaults():
+    args = forecast.parse_args([])
+
+    assert args.origin is None
+    assert args.log_file is None
+    assert args.verbose is False
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2026-01-14T23:00:00+00:00", datetime(2026, 1, 14, 23, tzinfo=timezone.utc)),
+        ("2026-01-14T23:00", datetime(2026, 1, 14, 23, tzinfo=timezone.utc)),  # no timezone → UTC
+    ],
+)
+def test_forecast_parse_origin(value, expected):
+    assert forecast.parse_args(["--origin", value]).origin == expected
+
+
+@pytest.mark.parametrize("value", ["yesterday", "2026-01-14T23:30:00+00:00"], ids=["not-iso", "not-on-the-hour"])
+def test_forecast_invalid_origin_exits_with_2(value):
+    with pytest.raises(SystemExit) as exit_info:
+        forecast.parse_args(["--origin", value])
+
+    assert exit_info.value.code == EXIT_INPUT_ERROR
+
+
+def test_ingest_train_forecast_happy_path(trained, fake_weather, capsys):
+    capsys.readouterr()  # discard the output of `train`
+
+    assert forecast.main([]) == EXIT_OK
+
+    report_file = trained / "reports" / "forecast_20260114T23.json"
+    report = json.loads(report_file.read_text(encoding="utf-8"))
+    assert report["origin"] == "2026-01-14T23:00:00Z"
+    assert len(report["predictions"]) == HORIZON_HOURS
+    assert set(report["predictions"][0]) == {"time_utc", "predicted_mw"}
+    assert report["model_version"].startswith(("naive-", "ridge-", "hgb-"))
+    assert "Report written to" in capsys.readouterr().out
+    assert fake_weather.origins == [datetime(2026, 1, 14, 23, tzinfo=timezone.utc)]
+
+
+def test_forecast_with_explicit_origin(trained, fake_weather):
+    assert forecast.main(["--origin", "2026-01-10T12:00:00+00:00"]) == EXIT_OK
+
+    assert (trained / "reports" / "forecast_20260110T12.json").exists()
+
+
+def test_forecast_saves_the_predictions_in_the_database(trained, fake_weather):
+    assert forecast.main([]) == EXIT_OK
+
+    engine = create_db_engine(load_settings().database_url)
+    try:
+        stored = SqlPredictionRepository(engine).between(
+            datetime(2026, 1, 15, tzinfo=timezone.utc), datetime(2026, 1, 16, tzinfo=timezone.utc)
+        )
+    finally:
+        engine.dispose()
+    assert len(stored) == HORIZON_HOURS
+
+
+def test_forecast_without_model_returns_exit_2(cli_env, hourly_observations, fake_weather):
+    hourly_observations.to_csv(cli_env / "energy_weather_es_hourly.csv", index=False)
+    assert ingest.main([]) == EXIT_OK
+
+    assert forecast.main([]) == EXIT_INPUT_ERROR
+
+    assert not list(cli_env.glob("reports/forecast_*.json"))
+    assert fake_weather.origins == []  # it fails before calling the weather service
+
+
+def test_forecast_without_enough_history_returns_exit_2(trained, fake_weather):
+    assert forecast.main(["--origin", "2024-11-02T00:00:00+00:00"]) == EXIT_INPUT_ERROR
+
+
+def test_forecast_weather_service_down_returns_exit_1(trained, monkeypatch):
+    down = FakeWeatherForecastClient(error=ExternalServiceError("Open-Meteo answered 503"))
+    monkeypatch.setattr(bootstrap, "OpenMeteoForecastClient", lambda: down)
+
+    assert forecast.main([]) == EXIT_FAILURE
+
+
+def test_forecast_unexpected_error_returns_exit_1(cli_env, monkeypatch):
+    class BrokenService:
+        def forecast(self, origin=None):
+            raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(forecast, "build_forecast_service", lambda settings: BrokenService())
+
+    assert forecast.main([]) == EXIT_FAILURE

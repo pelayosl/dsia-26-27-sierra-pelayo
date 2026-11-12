@@ -3,23 +3,21 @@
 CLIs and the API request their services from here, so no other layer knows concrete infrastructure classes.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 from sqlalchemy.engine import Engine
 
 from energy_forecast.config import Settings
 from energy_forecast.infrastructure.dataset_source import CsvDatasetSource
 from energy_forecast.infrastructure.db import create_db_engine, init_schema
 from energy_forecast.infrastructure.model_store import JoblibModelStore
-from energy_forecast.infrastructure.repositories import SqlObservationRepository, SqlPipelineRunRepository
+from energy_forecast.infrastructure.repositories import (
+    SqlObservationRepository,
+    SqlPipelineRunRepository,
+    SqlPredictionRepository,
+)
+from energy_forecast.infrastructure.weather_client import OpenMeteoForecastClient
+from energy_forecast.services.forecast import ForecastService
 from energy_forecast.services.ingestion import IngestionService
 from energy_forecast.services.training import TrainingService
-
-if TYPE_CHECKING:
-    # TODO (step 3.3): switch to a regular import when implementing `build_forecast_service`
-    from energy_forecast.services.forecast import ForecastService
 
 METRICS_FILE_NAME = "metrics.json"
 
@@ -57,5 +55,12 @@ def build_training_service(settings: Settings) -> TrainingService:
 
 def build_forecast_service(settings: Settings) -> ForecastService:
     """SQL repositories + `OpenMeteoForecastClient` + `JoblibModelStore` + `get_client(settings)`."""
-    # TODO: the `AIClient` comes from `get_client(settings)` (mock by default).
-    raise NotImplementedError
+    engine = _database(settings)
+    return ForecastService(
+        observations=SqlObservationRepository(engine),
+        weather=OpenMeteoForecastClient(),
+        model_store=_model_store(settings),
+        predictions=SqlPredictionRepository(engine),
+        runs=SqlPipelineRunRepository(engine),
+        # TODO (step 4.4): `ai_client=get_client(settings)` (mock by default).
+    )

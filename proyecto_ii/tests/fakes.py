@@ -21,7 +21,12 @@ from energy_forecast.domain.schema import (
     WEATHER_COLUMNS,
 )
 from energy_forecast.infrastructure.model_store import StoredModel
-from energy_forecast.infrastructure.repositories import RUN_FINAL_STATUSES, RUN_KINDS, RUN_STATUS_RUNNING
+from energy_forecast.infrastructure.repositories import (
+    PREDICTION_COLUMNS,
+    RUN_FINAL_STATUSES,
+    RUN_KINDS,
+    RUN_STATUS_RUNNING,
+)
 
 
 def _as_utc(value: datetime) -> pd.Timestamp:
@@ -81,18 +86,31 @@ class InMemoryObservationRepository:
 
 
 class InMemoryPredictionRepository:
-    """`PredictionRepository` that stores the `Forecast`s in a list."""
+    """`PredictionRepository` that stores the `Forecast`s in a list (`run_id`s `prediction-1`, `prediction-2`, …)."""
 
     def __init__(self) -> None:
         self.saved: list[Forecast] = []
 
     def save(self, forecast: Forecast) -> str:
-        # TODO: append to `saved` and return a predictable `run_id`.
-        raise NotImplementedError
+        self.saved.append(forecast)
+        return f"prediction-{len(self.saved)}"
 
     def between(self, start: datetime, end: datetime) -> pd.DataFrame:
-        # TODO: flatten `saved` and filter by `target_time_utc`.
-        raise NotImplementedError
+        rows = [
+            {
+                "run_id": f"prediction-{number}",
+                "created_at": pd.Timestamp.now(tz="UTC"),
+                "origin": _as_utc(forecast.origin),
+                "target_time_utc": _as_utc(prediction.time_utc),
+                "predicted_mw": prediction.predicted_mw,
+                "model_version": forecast.model_version,
+            }
+            for number, forecast in enumerate(self.saved, start=1)
+            for prediction in forecast.predictions
+        ]
+        frame = pd.DataFrame(rows, columns=PREDICTION_COLUMNS)
+        in_range = (frame["target_time_utc"] >= _as_utc(start)) & (frame["target_time_utc"] <= _as_utc(end))
+        return frame[in_range].reset_index(drop=True)
 
 
 class InMemoryPipelineRunRepository:
