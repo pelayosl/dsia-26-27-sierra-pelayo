@@ -47,6 +47,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
       - name: Run tests and coverage
-        # TODO: añadir --cov-fail-under=60 cuando el pipeline esté implementado
         run: |
-          python -m pytest -q -m "not integration" --cov=energy_forecast --cov-report=term-missing
+          python -m pytest -q -m "not integration" --cov=energy_forecast \
+            --cov-report=term-missing --cov-fail-under=80

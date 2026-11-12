@@ -22,4 +22,4 @@ class ModelNotFoundError(Exception):
 
 
 class ExternalServiceError(Exception):
-    '''An external service failed (Open-Meteo, Hugging Face)'''
+    '''An external service failed (Open-Meteo, NVIDIA API Catalog)'''
