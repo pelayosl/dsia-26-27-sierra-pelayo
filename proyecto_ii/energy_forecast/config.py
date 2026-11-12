@@ -3,16 +3,17 @@
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_DIR = Path(__file__).parents[1]
 SQLITE_PREFIX = "sqlite:///"
+DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b"  # D13
 
 
 class Settings(BaseSettings):
     """Immutable configuration.
-    Secrets (`HF_TOKEN`) only come from environment or `.env`, never in code.
+    Secrets (`NVIDIA_API_KEY`) only come from environment or `.env`, never in code.
     """
     model_config = SettingsConfigDict(
         env_file=PROJECT_DIR / ".env", env_file_encoding="utf-8", frozen=True, extra="ignore"
@@ -22,9 +23,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///data/energy.db"
     model_path: Path = Path("models/model.joblib")
     reports_dir: Path = Path("reports")
-    ai_provider: Literal["mock", "hf"] = "mock"
-    hf_token: str | None = None
-    hf_model: str | None = None
+    ai_provider: Literal["mock", "nvidia"] = "mock"
+    # `SecretStr`: the key is shown as '**********' in reprs, logs and errors; `.get_secret_value()` reads it
+    nvidia_api_key: SecretStr | None = None
+    nvidia_model: str = DEFAULT_NVIDIA_MODEL
     log_level: str = "INFO"
 
     # Field validators run before the model is frozen, so they can return a transformed value.
@@ -55,13 +57,13 @@ class Settings(BaseSettings):
 
     # Mode "after" receives the already validated instance (`self`)
     @model_validator(mode="after")
-    def check_hf_config(self) -> Self:
-        """The real Hugging Face provider needs both a token and a model id."""
-        if self.ai_provider == "hf":
-            if not self.hf_token:
-                raise ValueError("HF_TOKEN is required when ai_provider is 'hf'")
-            if not self.hf_model:
-                raise ValueError("HF_MODEL is required when ai_provider is 'hf'")
+    def check_nvidia_config(self) -> Self:
+        """The real NVIDIA provider (D13) needs an API key and a model id."""
+        if self.ai_provider == "nvidia":
+            if self.nvidia_api_key is None or not self.nvidia_api_key.get_secret_value().strip():
+                raise ValueError("NVIDIA_API_KEY is required when ai_provider is 'nvidia'")
+            if not self.nvidia_model.strip():
+                raise ValueError("NVIDIA_MODEL is required when ai_provider is 'nvidia'")
         return self
 
 

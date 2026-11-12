@@ -127,8 +127,7 @@ def mock_settings(tmp_path):
         model_path=tmp_path / "models" / "model.joblib",
         reports_dir=tmp_path / "reports",
         ai_provider="mock",
-        hf_token=None,
-        hf_model=None,
+        nvidia_api_key=None,
     )
 
 

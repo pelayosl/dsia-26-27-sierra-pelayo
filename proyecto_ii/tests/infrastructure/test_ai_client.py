@@ -1,12 +1,25 @@
-"""Tests of the AI edge (no network)."""
+"""Tests of the AI edge. No network, except `test_nvidia_real_request` (marked `integration`)."""
 
+import json
+import os
 from datetime import datetime
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
+from dotenv import dotenv_values
 
+from energy_forecast.config import PROJECT_DIR, Settings
+from energy_forecast.domain.errors import ExternalServiceError
 from energy_forecast.domain.models import ForecastSummary
-from energy_forecast.infrastructure.ai_client import AIClient, MockClient, get_client
+from energy_forecast.infrastructure.ai_client import (
+    MAX_TOKENS,
+    SYSTEM_PROMPT,
+    AIClient,
+    MockClient,
+    NvidiaClient,
+    get_client,
+)
 
 MADRID = ZoneInfo("Europe/Madrid")
 
@@ -107,3 +120,100 @@ def test_get_client_unsupported_provider_raises(mock_settings):
 
     with pytest.raises(ValueError, match="Unsupported AI provider 'other'"):
         get_client(settings)
+
+
+def test_get_client_nvidia():
+    settings = Settings(_env_file=None, ai_provider="nvidia", nvidia_api_key="nvapi-test", nvidia_model="owner/model")
+
+    client = get_client(settings)
+
+    assert isinstance(client, NvidiaClient)
+    assert (client.name, client.model) == ("nvidia", "owner/model")
+
+
+# ---------------------------------------------------------------- NvidiaClient (fake InferenceClient)
+
+
+class FakeInferenceClient:
+    """Records the `chat_completion` calls and returns `answer`, or raises `error`."""
+
+    def __init__(self, content: str | None = "The demand peaks at 20:00.", finish_reason: str = "stop",
+                 error: Exception | None = None, choices: bool = True) -> None:
+        self._content, self._finish_reason, self._error, self._choices = content, finish_reason, error, choices
+        self.calls: list[dict] = []
+
+    def chat_completion(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._error is not None:
+            raise self._error
+        message = SimpleNamespace(content=self._content)
+        choices = [SimpleNamespace(message=message, finish_reason=self._finish_reason)] if self._choices else []
+        return SimpleNamespace(choices=choices)
+
+
+def nvidia_client(**fake_options) -> tuple[NvidiaClient, FakeInferenceClient]:
+    fake = FakeInferenceClient(**fake_options)
+    return NvidiaClient("nvapi-test", "owner/model", inference_client=fake), fake
+
+
+def test_nvidia_client_returns_the_answer():
+    client, _ = nvidia_client(content="  The demand peaks at 20:00.  ")
+
+    assert client.explain(make_summary()) == "The demand peaks at 20:00."
+
+
+def test_nvidia_request_sends_prompt_summary_and_disables_reasoning():
+    client, fake = nvidia_client()
+    summary = make_summary()
+
+    client.explain(summary)
+
+    call = fake.calls[0]
+    assert call["model"] == "owner/model"
+    assert call["messages"][0] == {"role": "system", "content": SYSTEM_PROMPT}
+    assert json.loads(call["messages"][1]["content"]) == summary.model_dump(mode="json")
+    assert call["max_tokens"] == MAX_TOKENS
+    assert call["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_nvidia_reasoning_block_is_removed():
+    client, _ = nvidia_client(content="<think>let me compute...</think>The peak is at 20:00.")
+
+    assert client.explain(make_summary()) == "The peak is at 20:00."
+
+
+@pytest.mark.parametrize(
+    ("fake_options", "message"),
+    [
+        ({"error": TimeoutError("read timed out")}, "request failed"),
+        ({"error": RuntimeError("429 Too Many Requests")}, "429"),
+        ({"content": None}, "empty explanation"),
+        ({"content": "   "}, "empty explanation"),
+        ({"content": "The system peaked", "finish_reason": "length"}, "cut off"),
+        ({"choices": False}, "no choices"),
+    ],
+    ids=["timeout", "http-error", "none", "blank", "cut-off", "no-choices"],
+)
+def test_nvidia_failures_raise_external_service_error(fake_options, message):
+    client, _ = nvidia_client(**fake_options)
+
+    with pytest.raises(ExternalServiceError, match=message):
+        client.explain(make_summary())
+
+
+# ---------------------------------------------------------------- real API
+
+
+def _real_api_key() -> str | None:
+    return os.environ.get("NVIDIA_API_KEY") or dotenv_values(PROJECT_DIR / ".env").get("NVIDIA_API_KEY") or None
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_real_api_key() is None, reason="NVIDIA_API_KEY not configured")
+def test_nvidia_real_request():
+    client = NvidiaClient(_real_api_key(), Settings(_env_file=None).nvidia_model)
+
+    text = client.explain(make_summary())
+
+    assert len(text) > 20
+    assert "<think>" not in text

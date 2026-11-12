@@ -88,9 +88,8 @@ def test_ingest_schema_error_returns_exit_2(cli_env, hourly_observations):
 
 
 def test_ingest_invalid_configuration_returns_exit_2(cli_env, monkeypatch):
-    monkeypatch.setenv("AI_PROVIDER", "hf")  # without HF_TOKEN / HF_MODEL
-    monkeypatch.delenv("HF_TOKEN", raising=False)
-    monkeypatch.delenv("HF_MODEL", raising=False)
+    monkeypatch.setenv("AI_PROVIDER", "nvidia")  # without NVIDIA_API_KEY
+    monkeypatch.setenv("NVIDIA_API_KEY", "")
 
     assert ingest.main([]) == EXIT_INPUT_ERROR
 
@@ -142,9 +141,8 @@ def test_train_without_observations_returns_exit_2(cli_env):
 
 
 def test_train_invalid_configuration_returns_exit_2(cli_env, monkeypatch):
-    monkeypatch.setenv("AI_PROVIDER", "hf")  # without HF_TOKEN / HF_MODEL
-    monkeypatch.delenv("HF_TOKEN", raising=False)
-    monkeypatch.delenv("HF_MODEL", raising=False)
+    monkeypatch.setenv("AI_PROVIDER", "nvidia")  # without NVIDIA_API_KEY
+    monkeypatch.setenv("NVIDIA_API_KEY", "")
 
     assert train.main([]) == EXIT_INPUT_ERROR
 

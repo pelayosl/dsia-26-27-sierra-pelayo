@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from energy_forecast.config import PROJECT_DIR, Settings, load_settings
+from energy_forecast.config import DEFAULT_NVIDIA_MODEL, PROJECT_DIR, Settings, load_settings
 
 ENV_VARS = [
     "DATASET_PATH",
@@ -11,8 +11,8 @@ ENV_VARS = [
     "MODEL_PATH",
     "REPORTS_DIR",
     "AI_PROVIDER",
-    "HF_TOKEN",
-    "HF_MODEL",
+    "NVIDIA_API_KEY",
+    "NVIDIA_MODEL",
     "LOG_LEVEL",
 ]
 
@@ -30,22 +30,30 @@ def test_defaults_use_mock_provider():
 
     # Assert
     assert settings.ai_provider == "mock"
-    assert settings.hf_token is None
+    assert settings.nvidia_api_key is None
+    assert settings.nvidia_model == DEFAULT_NVIDIA_MODEL
     assert settings.log_level == "INFO"
 
 
 def test_reads_values_from_environment(monkeypatch):
-    monkeypatch.setenv("AI_PROVIDER", "hf")
-    monkeypatch.setenv("HF_TOKEN", "hf_test_token")
-    monkeypatch.setenv("HF_MODEL", "owner/model")
+    monkeypatch.setenv("AI_PROVIDER", "nvidia")
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+    monkeypatch.setenv("NVIDIA_MODEL", "owner/model")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
 
     settings = Settings(_env_file=None)
 
-    assert settings.ai_provider == "hf"
-    assert settings.hf_token == "hf_test_token"
-    assert settings.hf_model == "owner/model"
+    assert settings.ai_provider == "nvidia"
+    assert settings.nvidia_api_key.get_secret_value() == "nvapi-test-key"
+    assert settings.nvidia_model == "owner/model"
     assert settings.log_level == "DEBUG"
+
+
+def test_api_key_is_hidden_in_repr_and_errors():
+    settings = Settings(_env_file=None, ai_provider="nvidia", nvidia_api_key="nvapi-secret-value")
+
+    assert "nvapi-secret-value" not in repr(settings)
+    assert "nvapi-secret-value" not in str(settings.model_dump())
 
 
 def test_unknown_ai_provider_is_rejected():
@@ -53,13 +61,20 @@ def test_unknown_ai_provider_is_rejected():
         Settings(_env_file=None, ai_provider="openai")
 
 
-@pytest.mark.parametrize(
-    "hf_token, hf_model",
-    [(None, "owner/model"), ("hf_test_token", None), (None, None)],
-)
-def test_hf_provider_requires_token_and_model(hf_token, hf_model):
+def test_hf_provider_is_no_longer_accepted():
+    # D13: the real provider is NVIDIA; Hugging Face Inference Providers is not used
     with pytest.raises(ValidationError):
-        Settings(_env_file=None, ai_provider="hf", hf_token=hf_token, hf_model=hf_model)
+        Settings(_env_file=None, ai_provider="hf")
+
+
+@pytest.mark.parametrize(
+    ("api_key", "model", "message"),
+    [(None, "owner/model", "NVIDIA_API_KEY"), ("  ", "owner/model", "NVIDIA_API_KEY"), ("nvapi-x", " ", "NVIDIA_MODEL")],
+    ids=["no-key", "blank-key", "blank-model"],
+)
+def test_nvidia_provider_requires_key_and_model(api_key, model, message):
+    with pytest.raises(ValidationError, match=message):
+        Settings(_env_file=None, ai_provider="nvidia", nvidia_api_key=api_key, nvidia_model=model)
 
 
 def test_relative_paths_are_resolved_against_project_dir():
@@ -105,7 +120,7 @@ def test_settings_are_immutable():
     settings = Settings(_env_file=None)
 
     with pytest.raises(ValidationError):
-        settings.ai_provider = "hf"
+        settings.ai_provider = "nvidia"
 
 
 def test_load_settings_returns_settings(monkeypatch):
