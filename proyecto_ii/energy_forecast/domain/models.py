@@ -47,13 +47,20 @@ class Forecast(DomainModel):
 
 
 class ForecastSummary(DomainModel):
-    """Forecast data already computed by the domain; the LLM only writes them up."""
+    """Forecast data already computed by the domain; the LLM only writes them up.
+
+    Times are in Madrid local time. The 24 hours usually span two local days: `is_holiday` / `is_weekend`
+    are true if some hour of the period falls on a national holiday / weekend.
+    `change_vs_last_week_pct` is `None` when the demand of the same hours a week earlier is unknown.
+    """
+    period_start_local: datetime
+    period_end_local: datetime
     peak_time_local: datetime
     peak_mw: float = Field(ge=0)
     valley_time_local: datetime
     valley_mw: float = Field(ge=0)
     mean_mw: float = Field(ge=0)
-    change_vs_last_week_pct: float
+    change_vs_last_week_pct: float | None
     mean_temperature_c: float
     is_holiday: bool
     is_weekend: bool
