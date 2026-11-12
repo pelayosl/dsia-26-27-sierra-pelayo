@@ -14,7 +14,7 @@ from energy_forecast.domain.errors import ExternalServiceError
 from energy_forecast.domain.schema import HORIZON_HOURS
 from energy_forecast.infrastructure.db import create_db_engine
 from energy_forecast.infrastructure.repositories import SqlObservationRepository, SqlPredictionRepository
-from tests.fakes import FakeWeatherForecastClient
+from tests.fakes import FailingAIClient, FakeWeatherForecastClient
 
 pytestmark = pytest.mark.usefixtures("restore_root_logger")
 
@@ -276,9 +276,35 @@ def test_forecast_weather_service_down_returns_exit_1(trained, monkeypatch):
 
 def test_forecast_unexpected_error_returns_exit_1(cli_env, monkeypatch):
     class BrokenService:
-        def forecast(self, origin=None):
+        def forecast(self, origin=None, explain=True):
             raise RuntimeError("database is locked")
 
     monkeypatch.setattr(forecast, "build_forecast_service", lambda settings: BrokenService())
 
     assert forecast.main([]) == EXIT_FAILURE
+
+
+def test_forecast_report_includes_the_mock_explanation(trained, fake_weather, capsys):
+    assert forecast.main([]) == EXIT_OK
+
+    report = json.loads((trained / "reports" / "forecast_20260114T23.json").read_text(encoding="utf-8"))
+    assert report["explanation"]
+    assert (report["provider"], report["ai_model"]) == ("mock", None)
+    assert "Explanation (mock)" in capsys.readouterr().out
+
+
+def test_forecast_no_explain(trained, fake_weather):
+    assert forecast.main(["--no-explain"]) == EXIT_OK
+
+    report = json.loads((trained / "reports" / "forecast_20260114T23.json").read_text(encoding="utf-8"))
+    assert (report["explanation"], report["provider"], report["ai_model"]) == (None, None, None)
+
+
+def test_forecast_ai_provider_down_still_returns_exit_0(trained, fake_weather, monkeypatch):
+    monkeypatch.setattr(bootstrap, "get_client", lambda settings: FailingAIClient())
+
+    assert forecast.main([]) == EXIT_OK
+
+    report = json.loads((trained / "reports" / "forecast_20260114T23.json").read_text(encoding="utf-8"))
+    assert report["provider"] == "mock-fallback"
+    assert report["explanation"]

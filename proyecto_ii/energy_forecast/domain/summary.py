@@ -45,14 +45,15 @@ def _mean_temperature(predictions: pd.DataFrame, weather_forecast: pd.DataFrame)
 
 
 def summarize_forecast(
-    forecast: Forecast, history: pd.DataFrame, weather_forecast: pd.DataFrame, model_mae_mw: float
+    forecast: Forecast, history: pd.DataFrame, weather_forecast: pd.DataFrame, model_mae_mw: float | None
 ) -> ForecastSummary:
     """Peak, valley, mean, change vs. the previous week and context of the forecast period.
 
     - `history`: observations before the origin (as `ObservationRepository.last_hours` returns them);
       only the demand of the same hours a week earlier is used.
     - `weather_forecast`: the forecast used for the prediction (`time_utc` + `temperature_2m`).
-    - `model_mae_mw`: test MAE of the model, from the saved metrics, as an indication of uncertainty.
+    - `model_mae_mw`: test MAE of the model, from the saved metrics, as an indication of uncertainty
+      (`None` if unknown).
     """
     predictions = _predictions_frame(forecast)
     local_time = predictions[TIME_COLUMN].dt.tz_convert(LOCAL_TIMEZONE)
@@ -73,5 +74,5 @@ def summarize_forecast(
         mean_temperature_c=_mean_temperature(predictions, weather_forecast),
         is_holiday=bool(calendar["is_holiday"].any()),
         is_weekend=bool(calendar["is_weekend"].any()),
-        model_mae_mw=round(float(model_mae_mw)),
+        model_mae_mw=None if model_mae_mw is None else round(float(model_mae_mw)),
     )

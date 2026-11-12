@@ -217,3 +217,19 @@ def test_nvidia_real_request():
 
     assert len(text) > 20
     assert "<think>" not in text
+
+
+def test_mock_explanation_without_model_error():
+    text = MockClient().explain(make_summary(model_mae_mw=None))
+
+    assert "model error" not in text and "None" not in text
+
+
+def test_nvidia_http_error_includes_the_status_code():
+    class HTTPError(Exception):
+        response = SimpleNamespace(status_code=401)
+
+    client, _ = nvidia_client(error=HTTPError("Request ID: abc"))
+
+    with pytest.raises(ExternalServiceError, match="HTTP 401"):
+        client.explain(make_summary())

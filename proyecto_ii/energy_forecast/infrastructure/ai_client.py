@@ -81,7 +81,8 @@ class MockClient:
         if context:
             sentences.append(f"The period includes {' and '.join(context)}, which usually lowers demand.")
 
-        sentences.append(f"Mean model error on the test set: ±{_mw(summary.model_mae_mw)}.")
+        if summary.model_mae_mw is not None:
+            sentences.append(f"Mean model error on the test set: ±{_mw(summary.model_mae_mw)}.")
         return " ".join(sentences)
 
 
@@ -121,7 +122,10 @@ class NvidiaClient:
                 extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             )
         except Exception as exc:  # network errors, timeouts and HTTP errors of `huggingface_hub`
-            raise ExternalServiceError(f"NVIDIA API request failed ({type(exc).__name__}): {exc}") from exc
+            # HTTP errors carry the response: its status (401 invalid key, 429 rate limit…) says more than the text
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            detail = f"HTTP {status}, " if status else ""
+            raise ExternalServiceError(f"NVIDIA API request failed ({detail}{type(exc).__name__}): {exc}") from exc
 
         if not output.choices:
             raise ExternalServiceError("NVIDIA API returned no choices")

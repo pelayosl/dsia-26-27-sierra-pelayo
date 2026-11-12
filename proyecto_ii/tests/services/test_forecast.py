@@ -8,9 +8,11 @@ from energy_forecast.domain.errors import ExternalServiceError, InsufficientHist
 from energy_forecast.domain.schema import HORIZON_HOURS, MIN_HISTORY_HOURS
 from energy_forecast.domain.validator import validate_observations
 from energy_forecast.infrastructure.model_store import StoredModel
-from energy_forecast.services.forecast import ForecastService
-from tests.conftest import FORECAST_ORIGIN
+from energy_forecast.services.forecast import FALLBACK_PROVIDER, ForecastService
+from tests.conftest import FORECAST_ORIGIN, FORECAST_TEMPERATURE_C
 from tests.fakes import (
+    FailingAIClient,
+    FakeAIClient,
     FakeModelStore,
     FakeWeatherForecastClient,
     InMemoryObservationRepository,
@@ -19,6 +21,8 @@ from tests.fakes import (
 )
 
 MODEL_VERSION = "hgb-test-v1"
+# The shape of the metrics that `train` saves with the model (only the fields the explanation reads)
+SAVED_METRICS = {"best_model": "hgb", "metrics": {"hgb": {"mae": 640.4, "rmse": 930.0, "mape": 2.3}}}
 
 
 @pytest.fixture
@@ -30,7 +34,7 @@ def observations(hourly_observations) -> InMemoryObservationRepository:
 
 @pytest.fixture
 def store(small_trained_model) -> FakeModelStore:
-    return FakeModelStore(StoredModel(model=small_trained_model, version=MODEL_VERSION, metrics={}))
+    return FakeModelStore(StoredModel(model=small_trained_model, version=MODEL_VERSION, metrics=SAVED_METRICS))
 
 
 @pytest.fixture
@@ -58,7 +62,8 @@ def test_forecast_returns_24_predictions_and_saves_them(service, predictions):
 
     assert len(forecast.predictions) == HORIZON_HOURS
     assert forecast.model_version == MODEL_VERSION
-    assert predictions.saved == [forecast]
+    assert len(predictions.saved) == 1
+    assert predictions.saved[0].predictions == forecast.predictions
 
 
 def test_default_origin_is_the_last_hour_with_known_demand(service, weather):
@@ -135,16 +140,74 @@ def test_weather_service_failure_is_propagated_and_nothing_is_saved(observations
     assert runs.get("run-1")["status"] == "error"
 
 
-# ---------------------------------------------------------------- AI explanation (step 4.4)
+# ---------------------------------------------------------------- AI explanation
 
 
-@pytest.mark.skip(reason="TODO (paso 4.4): explicación con MockClient")
-def test_forecast_with_mock_explanation(small_trained_model, hourly_observations, weather_forecast_24h):
-    # TODO: non-empty `explanation` and `provider == "mock"`.
-    ...
+def test_forecast_with_mock_explanation(service):
+    # Without an AI client the service uses the mock (AI_PROVIDER=mock by default)
+    forecast = service.forecast()
+
+    assert forecast.explanation
+    assert (forecast.provider, forecast.ai_model) == ("mock", None)
+    assert "±640 MW" in forecast.explanation  # MAE read from the saved metrics
 
 
-@pytest.mark.skip(reason="TODO (paso 4.4): fallback a mock")
-def test_forecast_falls_back_to_mock_when_ai_fails(small_trained_model, hourly_observations, weather_forecast_24h):
-    # TODO: `FailingAIClient` → the forecast is still returned with `provider == "mock-fallback"`.
-    ...
+def test_forecast_with_the_real_provider(observations, weather, store, predictions, runs):
+    ai_client = FakeAIClient("The peak is at 20:00.")
+    service = ForecastService(observations, weather, store, predictions, runs, ai_client=ai_client)
+
+    forecast = service.forecast()
+
+    assert forecast.explanation == "The peak is at 20:00."
+    assert (forecast.provider, forecast.ai_model) == ("nvidia", "fake/model")
+
+
+def test_the_ai_client_receives_the_summary_of_this_forecast(observations, weather, store, predictions, runs):
+    ai_client = FakeAIClient()
+    service = ForecastService(observations, weather, store, predictions, runs, ai_client=ai_client)
+
+    forecast = service.forecast()
+
+    summary = ai_client.summaries[0]
+    predicted = [p.predicted_mw for p in forecast.predictions]
+    assert summary.peak_mw == round(max(predicted))
+    assert summary.mean_temperature_c == pytest.approx(FORECAST_TEMPERATURE_C)
+    assert summary.model_mae_mw == 640
+    assert summary.change_vs_last_week_pct is not None  # the history covers the previous week
+
+
+def test_forecast_falls_back_to_mock_when_ai_fails(observations, weather, store, predictions, runs, caplog):
+    service = ForecastService(observations, weather, store, predictions, runs, ai_client=FailingAIClient())
+
+    forecast = service.forecast()
+
+    assert forecast.explanation  # the mock text
+    assert (forecast.provider, forecast.ai_model) == (FALLBACK_PROVIDER, None)
+    assert runs.get("run-1")["status"] == "ok"  # the AI provider is not in the critical path
+    assert "using the mock explanation" in caplog.text
+
+
+def test_forecast_without_explanation(observations, weather, store, predictions, runs):
+    ai_client = FakeAIClient()
+    service = ForecastService(observations, weather, store, predictions, runs, ai_client=ai_client)
+
+    forecast = service.forecast(explain=False)
+
+    assert (forecast.explanation, forecast.provider, forecast.ai_model) == (None, None, None)
+    assert ai_client.summaries == []  # no call to the AI provider
+
+
+def test_explanation_without_saved_metrics_omits_the_model_error(observations, weather, predictions, runs,
+                                                                 small_trained_model):
+    store = FakeModelStore(StoredModel(model=small_trained_model, version=MODEL_VERSION, metrics={}))
+    ai_client = FakeAIClient()
+
+    ForecastService(observations, weather, store, predictions, runs, ai_client=ai_client).forecast()
+
+    assert ai_client.summaries[0].model_mae_mw is None
+
+
+def test_predictions_are_saved_even_if_the_explanation_fails(observations, weather, store, predictions, runs):
+    ForecastService(observations, weather, store, predictions, runs, ai_client=FailingAIClient()).forecast()
+
+    assert len(predictions.saved) == 1

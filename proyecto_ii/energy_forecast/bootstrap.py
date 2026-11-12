@@ -6,6 +6,7 @@ CLIs and the API request their services from here, so no other layer knows concr
 from sqlalchemy.engine import Engine
 
 from energy_forecast.config import Settings
+from energy_forecast.infrastructure.ai_client import get_client
 from energy_forecast.infrastructure.dataset_source import CsvDatasetSource
 from energy_forecast.infrastructure.db import create_db_engine, init_schema
 from energy_forecast.infrastructure.model_store import JoblibModelStore
@@ -62,5 +63,5 @@ def build_forecast_service(settings: Settings) -> ForecastService:
         model_store=_model_store(settings),
         predictions=SqlPredictionRepository(engine),
         runs=SqlPipelineRunRepository(engine),
-        # TODO (step 4.4): `ai_client=get_client(settings)` (mock by default).
+        ai_client=get_client(settings),
     )

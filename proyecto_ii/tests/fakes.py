@@ -11,7 +11,7 @@ import pandas as pd
 from pydantic_core import to_jsonable_python
 from sklearn.base import BaseEstimator
 
-from energy_forecast.domain.errors import ModelNotFoundError
+from energy_forecast.domain.errors import ExternalServiceError, ModelNotFoundError
 from energy_forecast.domain.models import Forecast, ForecastSummary
 from energy_forecast.domain.schema import (
     HORIZON_HOURS,
@@ -182,11 +182,24 @@ class FakeModelStore:
         return self._stored
 
 
+class FakeAIClient:
+    """`AIClient` that returns a fixed text and records the summaries it receives."""
+    name = "nvidia"
+    model = "fake/model"
+
+    def __init__(self, text: str = "Fake explanation.") -> None:
+        self._text = text
+        self.summaries: list[ForecastSummary] = []
+
+    def explain(self, summary: ForecastSummary) -> str:
+        self.summaries.append(summary)
+        return self._text
+
+
 class FailingAIClient:
     """`AIClient` that always fails, to test the *fallback* to mock."""
-    name = "hf"
+    name = "nvidia"
     model = "fake/model"
 
     def explain(self, summary: ForecastSummary) -> str:
-        # TODO: raise `ExternalServiceError`.
-        raise NotImplementedError
+        raise ExternalServiceError("NVIDIA API request failed (TimeoutError): read timed out")

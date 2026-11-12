@@ -1,6 +1,6 @@
-"""Forecast CLI: sklearn inference (+ AI explanation from step 4.4) → `reports/forecast_<date>.json`.
+"""Forecast CLI: sklearn inference + AI explanation → `reports/forecast_<date>.json`.
 
-Usage: python -m energy_forecast.cli.forecast [--origin 2026-11-07T23:00:00+00:00] [--log-file PATH] [-v]
+Usage: python -m energy_forecast.cli.forecast [--origin 2026-11-07T23:00:00+00:00] [--no-explain] [--log-file PATH] [-v]
 """
 
 import argparse
@@ -42,6 +42,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--origin", type=parse_origin,
         help="Last known hour, ISO 8601 (default: the last hour with demand in the database). Without timezone: UTC.",
     )
+    parser.add_argument(
+        "--no-explain", dest="explain", action="store_false",
+        help="Skip the AI explanation (no call to the AI provider).",
+    )
     parser.add_argument("--log-file", type=Path, help="Also write the log to this file.")
     parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG logging.")
     return parser.parse_args(argv)
@@ -64,6 +68,9 @@ def format_forecast(forecast: Forecast) -> str:
     for prediction in forecast.predictions:
         local = prediction.time_utc.astimezone(ZoneInfo(LOCAL_TIMEZONE))
         lines.append(f"  {local:%Y-%m-%d %H:%M}  {prediction.predicted_mw:>9,.0f} MW")
+    if forecast.explanation:
+        model = f", {forecast.ai_model}" if forecast.ai_model else ""
+        lines.append(f"\nExplanation ({forecast.provider}{model}):\n{forecast.explanation}")
     return "\n".join(lines)
 
 
@@ -80,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging("DEBUG" if args.verbose else settings.log_level, log_file=args.log_file)
 
     try:
-        forecast = build_forecast_service(settings).forecast(origin=args.origin)
+        forecast = build_forecast_service(settings).forecast(origin=args.origin, explain=args.explain)
     except (ModelNotFoundError, InsufficientHistoryError) as exc:
         logger.error("Cannot forecast: %s", exc)
         return EXIT_INPUT_ERROR
