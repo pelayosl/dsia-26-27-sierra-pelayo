@@ -13,7 +13,13 @@ from sklearn.base import BaseEstimator
 
 from energy_forecast.domain.errors import ModelNotFoundError
 from energy_forecast.domain.models import Forecast, ForecastSummary
-from energy_forecast.domain.schema import REQUIRED_COLUMNS, TARGET_COLUMN, TIME_COLUMN
+from energy_forecast.domain.schema import (
+    HORIZON_HOURS,
+    REQUIRED_COLUMNS,
+    TARGET_COLUMN,
+    TIME_COLUMN,
+    WEATHER_COLUMNS,
+)
 from energy_forecast.infrastructure.model_store import StoredModel
 from energy_forecast.infrastructure.repositories import RUN_FINAL_STATUSES, RUN_KINDS, RUN_STATUS_RUNNING
 
@@ -115,14 +121,27 @@ class InMemoryPipelineRunRepository:
 
 
 class FakeWeatherForecastClient:
-    """`WeatherForecastClient` that returns a fixed forecast."""
+    """`WeatherForecastClient` that returns fixed weather values, moved to the requested hours.
 
-    def __init__(self, frame: pd.DataFrame) -> None:
+    `frame` has `WEATHER_COLUMNS` (its `time_utc`, if any, is ignored); its first `hours` rows are returned
+    with `time_utc` = origin + 1 h ... origin + hours. Raises `error` if given. Records the requested origins.
+    """
+
+    def __init__(self, frame: pd.DataFrame | None = None, error: Exception | None = None) -> None:
         self._frame = frame
+        self._error = error
+        self.origins: list[datetime] = []
 
-    def next_hours(self, origin: datetime, hours: int = 24) -> pd.DataFrame:
-        # TODO: return `self._frame` with `time_utc` = origin + 1 h ... origin + hours.
-        raise NotImplementedError
+    def next_hours(self, origin: datetime, hours: int = HORIZON_HOURS) -> pd.DataFrame:
+        self.origins.append(origin)
+        if self._error is not None:
+            raise self._error
+        if len(self._frame) < hours:
+            raise ValueError(f"The fake forecast has {len(self._frame)} rows, {hours} requested")
+        start = _as_utc(origin) + timedelta(hours=1)
+        result = self._frame[WEATHER_COLUMNS].head(hours).reset_index(drop=True)
+        result.insert(0, TIME_COLUMN, pd.date_range(start, periods=hours, freq="h"))
+        return result
 
 
 class FakeModelStore:
