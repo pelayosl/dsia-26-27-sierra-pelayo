@@ -6,7 +6,7 @@ from pydantic import ValidationError as ConfigError
 
 from energy_forecast.config import Settings, load_settings
 
-# Exit codes (same convention as the session 5 job)
+# Exit codes
 EXIT_OK = 0
 EXIT_FAILURE = 1        # system or external service failure
 EXIT_INPUT_ERROR = 2    # bad input: missing file, invalid schema, no trained model
